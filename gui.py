@@ -847,13 +847,70 @@ class MainWindow(QMainWindow):
             self.worker.start()
 
 
+def load_library_path() -> str:
+    """从 .env 文件加载库路径，如果不存在则提示用户输入"""
+    env_file = Path(".env")
+    lib = None
+    
+    # 尝试从 .env 读取
+    if env_file.exists():
+        for line in env_file.read_text("utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("CALIBRE_LIBRARY="):
+                lib = line.split("=", 1)[1].strip().strip('"').strip("'")
+                break
+    
+    # 如果命令行参数有值，优先使用
+    if len(sys.argv) > 1:
+        lib = sys.argv[1]
+    
+    # 验证路径是否有效
+    if lib and Path(lib).exists() and (Path(lib) / "metadata.db").exists():
+        return lib
+    
+    # 路径无效或不存在，弹窗让用户选择
+    app = QApplication.instance() or QApplication(sys.argv)
+    
+    while True:
+        path = QFileDialog.getExistingDirectory(None, "选择 Calibre 书库目录", lib or "")
+        if not path:
+            # 用户取消
+            sys.exit(0)
+        
+        if (Path(path) / "metadata.db").exists():
+            # 保存到 .env
+            save_library_path(path)
+            return path
+        else:
+            QMessageBox.warning(None, "无效路径", f"该目录不是有效的 Calibre 书库：\n{path}\n\n请选择包含 metadata.db 的目录。")
+
+
+def save_library_path(lib_path: str):
+    """保存库路径到 .env 文件"""
+    env_file = Path(".env")
+    lines = []
+    found = False
+    
+    if env_file.exists():
+        for line in env_file.read_text("utf-8").splitlines():
+            if line.strip().startswith("CALIBRE_LIBRARY="):
+                lines.append(f'CALIBRE_LIBRARY="{lib_path}"')
+                found = True
+            else:
+                lines.append(line)
+    
+    if not found:
+        lines.append(f'CALIBRE_LIBRARY="{lib_path}"')
+    
+    env_file.write_text("\n".join(lines) + "\n", "utf-8")
+
+
 def main():
     global i18n
     i18n = I18n("langs.ini")
-    lib = r"C:\Users\Muffy\Calibre 书库"
-    if len(sys.argv) > 1: lib = sys.argv[1]
-    if not Path(lib).exists(): print(f"Error: {lib} not found"); sys.exit(1)
-    app = QApplication(sys.argv); app.setStyle('Fusion')
+    lib = load_library_path()
+    app = QApplication.instance() or QApplication(sys.argv)
+    app.setStyle('Fusion')
     win = MainWindow(lib); win.show(); sys.exit(app.exec())
 
 if __name__ == "__main__":
