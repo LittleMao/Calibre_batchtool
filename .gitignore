@@ -1,0 +1,4 @@
+/.env.example
+/.venv
+/requirements.txt
+/__pycache__
